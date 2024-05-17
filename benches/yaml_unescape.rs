@@ -20,7 +20,7 @@ pub fn find_escape(c: &mut Criterion) {
         .collect();
 
     let mut group = c.benchmark_group("find_escape");
-    for i in [100, 1_000].iter() {
+    for i in [1_000].iter() {
         group.bench_with_input(BenchmarkId::new("char_loop()", i), &lines, |b, lines| {
             b.iter(|| {
                 for line in lines.iter().take(*i) {
@@ -38,20 +38,28 @@ pub fn find_escape(c: &mut Criterion) {
                 }
             })
         });
-        group.bench_with_input(BenchmarkId::new("chunk_loop_vec()", i), &lines, |b, lines| {
-            b.iter(|| {
-                for line in lines.iter().take(*i) {
-                    black_box(unescape::chunk_loop_vec(line.as_bytes()));
-                }
-            })
-        });
-        group.bench_with_input(BenchmarkId::new("chunk_loop_box()", i), &lines, |b, lines| {
-            b.iter(|| {
-                for line in lines.iter().take(*i) {
-                    black_box(unescape::chunk_loop_box(line.as_bytes()));
-                }
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("chunk_loop_vec()", i),
+            &lines,
+            |b, lines| {
+                b.iter(|| {
+                    for line in lines.iter().take(*i) {
+                        black_box(unescape::chunk_loop_vec(line.as_bytes()));
+                    }
+                })
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("chunk_loop_box()", i),
+            &lines,
+            |b, lines| {
+                b.iter(|| {
+                    for line in lines.iter().take(*i) {
+                        black_box(unescape::chunk_loop_box(line.as_bytes()));
+                    }
+                })
+            },
+        );
     }
     group.finish();
 }

@@ -14,7 +14,7 @@ pub fn find_escape(c: &mut Criterion) {
     let lines: Vec<_> = history_file.lines().map_while(|l| l.ok()).collect();
 
     let mut group = c.benchmark_group("find_escape");
-    for i in [100, 1_000, 1_0000].iter() {
+    for i in [1_000].iter() {
         group.bench_with_input(
             BenchmarkId::new("slice.contains()", i),
             &lines,
