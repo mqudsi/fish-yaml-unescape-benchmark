@@ -13,3 +13,5 @@ harness = false
 [[bench]]
 name = "yaml_unescape"
 harness = false
+
+[workspace]
