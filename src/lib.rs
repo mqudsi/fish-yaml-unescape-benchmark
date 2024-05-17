@@ -76,7 +76,7 @@ pub mod unescape {
         }
     }
 
-    pub fn chunk_loop(s: &[u8]) -> Vec<u8> {
+    pub fn chunk_loop_vec(s: &[u8]) -> Vec<u8> {
         let mut result = Vec::with_capacity(s.len());
         let mut chars = s.iter().copied();
         loop {
@@ -84,17 +84,42 @@ pub mod unescape {
             match chars.next() {
                 Some(b'\\') => result.push(b'\\'),
                 Some(b'n') => result.push(b'\n'),
-                Some(other) => {
-                    // Unrecognized escape. This shouldn't happen, but just pass it through.
-                    result.push(b'\\');
-                    result.push(other);
-                }
-                None => {
-                    break;
-                }
+                _ => break,
             }
         }
 
+        result
+    }
+
+    /// Inspecting the generated asm from [`chunk_loop_vec()`], it's clear that it's a suboptimal
+    /// solution because `Vec::extend(iter)` keeps checking to see if it needs to resize, so this is
+    /// an attempt to write to a `Box<[u8]>` directly (using known valid offsets) then convert the
+    /// result to a (truncated) `Vec`.
+    pub fn chunk_loop_box(s: &[u8]) -> Vec<u8> {
+        let mut result: Box<[u8]> = Box::from(s);
+        let mut chars = s.iter().copied();
+        let mut src_idx = 0;
+        let mut dst_idx = 0;
+        loop {
+            let to_copy = chars.by_ref().take_while(|b| *b != b'\\').count();
+            result[dst_idx..][..to_copy].copy_from_slice(&s[src_idx..][..to_copy]);
+            dst_idx += to_copy;
+
+            match chars.next() {
+                Some(b'\\') => {
+                    result[dst_idx] = b'\\';
+                }
+                Some(b'n') => {
+                    result[dst_idx] = b'\n';
+                }
+                _ => break,
+            }
+            src_idx += to_copy + 2;
+            dst_idx += 1;
+        }
+
+        let mut result = Vec::from(result);
+        result.truncate(dst_idx);
         result
     }
 }
@@ -102,6 +127,7 @@ pub mod unescape {
 #[test]
 fn consistent_unescape() {
     use crate::find::find_fold;
+    use crate::unescape::*;
     use std::fs::File;
     use std::io::{BufRead, BufReader};
     use std::str::from_utf8;
@@ -123,19 +149,34 @@ fn consistent_unescape() {
         .take(500);
 
     for line in lines {
-        let result_splice = {
+        let expected = {
             let mut clone = Vec::new();
             clone.extend_from_slice(line.as_bytes());
             unescape::splice(&mut clone);
             clone
         };
-        let result_char_loop = unescape::char_loop(line.as_bytes());
-        let result_chunk_loop = unescape::chunk_loop(line.as_bytes());
-        if from_utf8(&result_splice).unwrap() != from_utf8(&result_char_loop).unwrap() {
-            panic!("char_loop() does not match legacy behavior!\nOriginal line:\n{}\nExpected:\n{}\nActual:\n{}", line, from_utf8(&result_splice).unwrap(), from_utf8(&result_char_loop).unwrap());
-        }
-        if from_utf8(&result_splice).unwrap() != from_utf8(&result_chunk_loop).unwrap() {
-            panic!("chunk_loop() does not match legacy behavior!\nOriginal line:\n{}\nExpected:\n{}\nActual:\n{}", line, from_utf8(&result_splice).unwrap(), from_utf8(&result_chunk_loop).unwrap());
+
+        for (alternate, name) in [
+            (char_loop as fn(&[u8]) -> Vec<u8>, stringify!(char_loop)),
+            (chunk_loop_vec, stringify!(chunk_loop_vec)),
+            (chunk_loop_box, stringify!(chunk_loop_box)),
+        ] {
+            let result = alternate(line.as_bytes());
+
+            if &expected != &result {
+                panic!(
+                    concat!(
+                        "{} does not match legacy behavior!\n",
+                        "Original line:\n{}\n",
+                        "Expected:\n{}\n",
+                        "Actual:\n{}"
+                    ),
+                    name,
+                    line,
+                    from_utf8(&expected).unwrap(),
+                    from_utf8(&result).unwrap()
+                );
+            }
         }
     }
 }

@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 extern crate unescape_bench;
 use unescape_bench::find::find_fold;
-use unescape_bench::unescape::{char_loop, splice, chunk_loop};
+use unescape_bench::unescape;
 
 pub fn find_escape(c: &mut Criterion) {
     #[allow(deprecated)]
@@ -20,11 +20,11 @@ pub fn find_escape(c: &mut Criterion) {
         .collect();
 
     let mut group = c.benchmark_group("find_escape");
-    for i in [100, 1_000, 1_0000].iter() {
+    for i in [100, 1_000].iter() {
         group.bench_with_input(BenchmarkId::new("char_loop()", i), &lines, |b, lines| {
             b.iter(|| {
                 for line in lines.iter().take(*i) {
-                    black_box(char_loop(line.as_bytes()));
+                    black_box(unescape::char_loop(line.as_bytes()));
                 }
             })
         });
@@ -34,14 +34,21 @@ pub fn find_escape(c: &mut Criterion) {
                     // The code we have clones the vector before passing it as `&mut Vec<u8>`
                     let mut v = Vec::with_capacity(line.len());
                     v.extend_from_slice(line.as_bytes());
-                    black_box(splice(&mut v));
+                    black_box(unescape::splice(&mut v));
                 }
             })
         });
-        group.bench_with_input(BenchmarkId::new("chunk_loop()", i), &lines, |b, lines| {
+        group.bench_with_input(BenchmarkId::new("chunk_loop_vec()", i), &lines, |b, lines| {
             b.iter(|| {
                 for line in lines.iter().take(*i) {
-                    black_box(chunk_loop(line.as_bytes()));
+                    black_box(unescape::chunk_loop_vec(line.as_bytes()));
+                }
+            })
+        });
+        group.bench_with_input(BenchmarkId::new("chunk_loop_box()", i), &lines, |b, lines| {
+            b.iter(|| {
+                for line in lines.iter().take(*i) {
+                    black_box(unescape::chunk_loop_box(line.as_bytes()));
                 }
             })
         });
