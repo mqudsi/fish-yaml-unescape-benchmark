@@ -55,7 +55,7 @@ find_escape/slice.iter().fold()/1000
                         time:   [9.6777 µs 9.6828 µs 9.6879 µs]
 ```
 
-## `find_escape` benchmark
+## `yaml_unescape` benchmark
 
 Compiled for `x86-64-v1`:
 
