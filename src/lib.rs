@@ -96,22 +96,31 @@ pub mod unescape {
     /// an attempt to write to a `Box<[u8]>` directly (using known valid offsets) then convert the
     /// result to a (truncated) `Vec`.
     pub fn chunk_loop_box(s: &[u8]) -> Vec<u8> {
-        let mut result: Box<[u8]> = Box::from(s);
+        // Safety: we never read from this box; we only write to it then read what we've written.
+        // Rationale: This function is in a very hot loop and this benchmarks around 8% faster on
+        // real-world escaped yaml samples from the fish history file.
+        //
+        // This is a very long way around of writing `Box::new_uninit_slice(s.len())`, which
+        // requires the unstablized nightly-only feature new_unit (#63291). It optimizes away.
+        let mut result: Box<[u8]> = std::iter::repeat_with(std::mem::MaybeUninit::uninit)
+            .take(s.len())
+            .map(|b| unsafe { b.assume_init() })
+            .collect();
         let mut chars = s.iter().copied();
         let mut src_idx = 0;
         let mut dst_idx = 0;
         loop {
+            // While inspecting the asm reveals the compiler does not elide the bounds check from
+            // the writes to `result`, benchmarking shows that using `result.get_unchecked_mut()`
+            // everywhere does not result in a statistically significant improvement to the
+            // performance of this function.
             let to_copy = chars.by_ref().take_while(|b| *b != b'\\').count();
             result[dst_idx..][..to_copy].copy_from_slice(&s[src_idx..][..to_copy]);
             dst_idx += to_copy;
 
             match chars.next() {
-                Some(b'\\') => {
-                    result[dst_idx] = b'\\';
-                }
-                Some(b'n') => {
-                    result[dst_idx] = b'\n';
-                }
+                Some(b'\\') => result[dst_idx] = b'\\',
+                Some(b'n') => result[dst_idx] = b'\n',
                 _ => break,
             }
             src_idx += to_copy + 2;
