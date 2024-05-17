@@ -131,15 +131,11 @@ fn consistent_unescape() {
         };
         let result_char_loop = unescape::char_loop(line.as_bytes());
         let result_chunk_loop = unescape::chunk_loop(line.as_bytes());
-        assert_eq!(
-            from_utf8(&result_splice).unwrap(),
-            from_utf8(&result_char_loop).unwrap(),
-            "char_loop() does not match legacy behavior!\nOriginal line:\n{}", line
-        );
-        assert_eq!(
-            from_utf8(&result_splice).unwrap(),
-            from_utf8(&result_chunk_loop).unwrap(),
-            "chunk_loop() does not match legacy behavior!\nOriginal line:\n{}", line
-        );
+        if from_utf8(&result_splice).unwrap() != from_utf8(&result_char_loop).unwrap() {
+            panic!("char_loop() does not match legacy behavior!\nOriginal line:\n{}\nExpected:\n{}\nActual:\n{}", line, from_utf8(&result_splice).unwrap(), from_utf8(&result_char_loop).unwrap());
+        }
+        if from_utf8(&result_splice).unwrap() != from_utf8(&result_chunk_loop).unwrap() {
+            panic!("chunk_loop() does not match legacy behavior!\nOriginal line:\n{}\nExpected:\n{}\nActual:\n{}", line, from_utf8(&result_splice).unwrap(), from_utf8(&result_chunk_loop).unwrap());
+        }
     }
 }
